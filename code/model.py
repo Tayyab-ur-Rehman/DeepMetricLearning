@@ -1,4 +1,4 @@
-import torchvision.models as resnet50
+from torchvision.models import resnet50
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -6,15 +6,15 @@ train4thlayer=1
 
 class DeepMetricLearning(nn.Module):
     def __init__(self,output_dim,train4thlayer=False):
-        super(self).__init__()
+        super().__init__()
         resnet = resnet50(weights="IMAGENET1K_V1")
         self.backbone = nn.Sequential(*list(resnet.children())[:-1])
         
-        for param in self.backbone.parameters():# freeze all
-            param.requires_grad = False
-        if train4thlayer:
-            for param in self.backbone.layer4.parameters(): # if we want to train last conv layer
-                param.requires_grad = True
+        # for param in self.backbone.parameters():# freeze all
+        #     param.requires_grad = False
+        # if train4thlayer:
+        #     for param in self.backbone.layer4.parameters(): # if we want to train last conv layer
+        #         param.requires_grad = True
 
         self.projection = nn.Sequential(
             nn.Linear(2048, 512),
