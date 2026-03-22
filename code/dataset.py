@@ -1,5 +1,4 @@
-import os
-import random
+import os, random, torch
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as T
@@ -147,10 +146,48 @@ def get_dataloaders(root, mode='triplet', batch_size=32, num_workers=2):
         test_dataset = TripletDataset(te_base)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                              num_workers=num_workers, pin_memory=True)
+                              num_workers=num_workers)
     val_loader   = DataLoader(val_dataset,  batch_size=batch_size, shuffle=False,
-                              num_workers=num_workers, pin_memory=True)
+                              num_workers=num_workers)
     test_loader  = DataLoader(test_dataset,   batch_size=batch_size, shuffle=False,
-                              num_workers=num_workers, pin_memory=True)
+                              num_workers=num_workers)
 
     return train_loader, val_loader, test_loader, tr_base.num_classes()
+
+
+class CachedTripletDataset(Dataset):
+    def __init__(self, pt_path):
+        data                   = torch.load(pt_path, map_location='cpu')
+        self.features          = data['features']
+        self.labels            = data['labels']
+        self.class_indices  = data['c2i']
+        self.all_classes       = list(self.class_indices.keys())
+
+    def __len__(self): return len(self.features)
+
+    def __getitem__(self, idx):
+        anchor_label  = self.labels[idx].item()
+        positive_pool      = [i for i in self.class_indices[anchor_label] if i != idx] or self.class_indices[anchor_label]
+        idx_positive  = random.choice(positive_pool)
+        neg_class     = random.choice([c for c in self.all_classes if c != anchor_label])
+        idx_negative  = random.choice(self.class_indices[neg_class])
+        return self.features[idx], self.features[idx_positive], self.features[idx_negative]
+
+
+class CachedContrastiveDataset(Dataset):
+    def __init__(self, pt_path):
+        data                   = torch.load(pt_path, map_location='cpu')
+        self.features          = data['features']
+        self.labels            = data['labels']
+        self.class_indices  = data['c2i']
+        self.all_classes       = list(self.class_indices.keys())
+
+    def __len__(self): return len(self.features)
+
+    def __getitem__(self, idx):
+        anchor_label = self.labels[idx].item()
+        if random.random() < 0.5:
+            positive_pool = [i for i in self.class_indices[anchor_label] if i != idx] or self.class_indices[anchor_label]
+            return self.features[idx], self.features[random.choice(positive_pool)], 1
+        neg_class = random.choice([c for c in self.all_classes if c != anchor_label])
+        return self.features[idx], self.features[random.choice(self.class_indices[neg_class])], 0
