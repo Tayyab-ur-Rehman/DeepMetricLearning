@@ -1,5 +1,5 @@
 import argparse, os, sys
-from time import time
+import time
 import torch
 import torch.optim as optim
 import matplotlib
@@ -45,7 +45,7 @@ def main():
     p.add_argument('--mode',       default='contrastive',  choices=['contrastive', 'triplet', 'hard'])
     p.add_argument('--epochs',     type=int,   default=20)
     args = p.parse_args()
-    save_dir= f"weights/{args.mode}_{time(0)}" # folder with time to hanle foldering
+    save_dir= f"weights/{args.mode}_{time.time()}" # folder with time to hanle foldering
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(os.path.join(save_dir, 'graphs'),  exist_ok=True)
 
@@ -71,9 +71,7 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         tr_loss  = run_epoch(model, train_loader, loss_fn, optimizer, device, args.mode, training=True)
-        print(f'epoch {epoch}/{args.epochs}   train={tr_loss:.4f}', end='')
         val_loss = run_epoch(model, val_loader,   loss_fn, optimizer, device, args.mode, training=False)
-        print(f'   val={val_loss:.4f}')
         tr_losses.append(tr_loss)
         val_losses.append(val_loss)
         print(f'epoch {epoch}/{args.epochs}   train={tr_loss:.4f}   val={val_loss:.4f}')
