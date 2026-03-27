@@ -12,7 +12,24 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model   import DeepMetricLearning
 from loss    import ContrastiveLoss, TripletLoss
-from dataset import CachedTripletDataset, CachedContrastiveDataset
+from dataset import CachedTripletDataset, CachedContrastiveDataset, PKDataset
+
+
+def batch_hard_mining_and_loss(embeddings, labels, margin=0.2):
+    dist  = torch.cdist(embeddings, embeddings, p=2)
+    total = torch.tensor(0.0, device=embeddings.device)
+    n     = 0
+    for i in range(len(labels)):
+        same     = labels == labels[i] # boolean mask for pos
+        same[i]  = False               # not the anchor itself
+        diff     = ~(labels == labels[i]) # mask for neg ! was not working so used ~
+        if same.sum() == 0 or diff.sum() == 0:
+            continue
+        hard_pos  = dist[i][same].max()
+        hard_neg  = dist[i][diff].min()
+        total    += torch.clamp(hard_pos - hard_neg + margin, min=0)
+        n += 1
+    return total / n
 
 
 def run_epoch(model, loader, loss_fn, optimizer, device, mode, training=True):
@@ -31,6 +48,10 @@ def run_epoch(model, loader, loss_fn, optimizer, device, mode, training=True):
                 a, p, n = [x.to(device) for x in batch]
                 loss = loss_fn(model.project(a), model.project(p), model.project(n))
 
+            else:
+                features     = batch[0].squeeze(0).to(device)
+                batch_labels = batch[1].squeeze(0).to(device)
+                loss = batch_hard_mining_and_loss(model.project(features), batch_labels)
 
             if training:
                 loss.backward()
@@ -72,14 +93,19 @@ def main():
         train_loader = DataLoader(CachedTripletDataset('feature_cache/train.pt'), batch_size=batch_size, shuffle=True)
         val_loader   = DataLoader(CachedTripletDataset('feature_cache/val.pt'),    batch_size=batch_size, shuffle=False)
     else:
-        exit(1)
+        loss_fn      = None
+        val_loss_fn  = TripletLoss()
+        train_loader = DataLoader(PKDataset('feature_cache/train.pt', p=8, k=8),
+                                  batch_size=1, shuffle=True)
+        val_loader   = DataLoader(CachedTripletDataset('feature_cache/val.pt'),
+                                  batch_size=batch_size, shuffle=False)
         
     tr_losses, val_losses = [], []
     best_val = float('inf')
 
     for epoch in range(1, args.epochs + 1):
-        tr_loss  = run_epoch(model, train_loader, loss_fn, optimizer, device, args.mode, training=True)
-        val_loss = run_epoch(model, val_loader,   loss_fn, optimizer, device, args.mode, training=False)
+        tr_loss  = run_epoch(model, train_loader, loss_fn,optimizer, device, args.mode, training=True)
+        val_loss = run_epoch(model, val_loader,   loss_fn if args.mode != 'hard' else val_loss_fn, optimizer, device, args.mode if args.mode != 'hard' else 'triplet', training=False)
         tr_losses.append(tr_loss)
         val_losses.append(val_loss)
         print(f'epoch {epoch}/{args.epochs}   train={tr_loss:.4f}   val={val_loss:.4f}')

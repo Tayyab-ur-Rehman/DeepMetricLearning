@@ -191,3 +191,27 @@ class CachedContrastiveDataset(Dataset):
             return self.features[idx], self.features[random.choice(positive_pool)], 1
         neg_class = random.choice([c for c in self.all_classes if c != anchor_label])
         return self.features[idx], self.features[random.choice(self.class_indices[neg_class])], 0
+
+
+class PKDataset(Dataset):
+    def __init__(self, pt_path, p=8, k=8):
+        data             = torch.load(pt_path, map_location='cpu')
+        self.features    = data['features']
+        self.labels      = data['labels']
+        self.c2i         = data['c2i']
+        self.p           = p
+        self.k           = k
+        self.all_classes = list(self.c2i.keys())
+
+    def __len__(self):
+        return 150 # so that we run 100 epoc s as we get diff classes each so 64* 100 = 6400 images in one epoch
+    def __getitem__(self, _):
+        selected_classes = random.sample(self.all_classes, self.p)
+        batch_indices    = []
+        for cls in selected_classes:
+            pool = self.c2i[cls]
+            if len(pool) >= self.k:
+                batch_indices += random.sample(pool, self.k)
+            else:
+                batch_indices += random.choices(pool, k=self.k)
+        return self.features[batch_indices], self.labels[batch_indices]
