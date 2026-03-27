@@ -42,10 +42,16 @@ def run_epoch(model, loader, loss_fn, optimizer, device, mode, training=True):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--mode',       default='contrastive',  choices=['contrastive', 'triplet', 'hard'])
+    p.add_argument('--option',       default='1',  choices=['1', '2', '3'])
     p.add_argument('--epochs',     type=int,   default=20)
     args = p.parse_args()
-    save_dir= f"weights/{args.mode}_{time.time()}" # folder with time to hanle foldering
+    if(args.option=='1'):
+        args.mode = 'contrastive'
+    elif(args.option=='2'):
+        args.mode = 'triplet'
+    else:
+        args.mode='hard'
+    save_dir= f"weights/{args.mode}_{time.time()}" # folder with time to hanle multiple runs 
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(os.path.join(save_dir, 'graphs'),  exist_ok=True)
 
@@ -65,7 +71,9 @@ def main():
 
         train_loader = DataLoader(CachedTripletDataset('feature_cache/train.pt'), batch_size=batch_size, shuffle=True)
         val_loader   = DataLoader(CachedTripletDataset('feature_cache/val.pt'),    batch_size=batch_size, shuffle=False)
-
+    else:
+        exit(1)
+        
     tr_losses, val_losses = [], []
     best_val = float('inf')
 
