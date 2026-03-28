@@ -66,7 +66,6 @@ def main():
 
     p = argparse.ArgumentParser()
     p.add_argument('--model_path', required=True)
-    p.add_argument('--mode',       default='triplet')
     args = p.parse_args()
     out_dir = os.path.dirname(args.model_path)
     out_dir=os.path.join(out_dir, 'graphs')
